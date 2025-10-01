@@ -1,0 +1,22 @@
+[project]
+name = "movies"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "blinker",
+    "click",
+    "Flask",
+    "Flask-SQLAlchemy",
+    "greenlet",
+    "itsdangerous",
+    "Jinja2",
+    "MarkupSafe",
+    "PyMySQL",
+    "SQLAlchemy",
+    "typing_extensions",
+    "Werkzeug",
+    "marshmallow",
+    "marshmallow-sqlalchemy"
+    ]
