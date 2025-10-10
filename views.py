@@ -5,6 +5,7 @@ from flask_jwt_extended import (
     jwt_required,
     create_access_token,
     get_jwt_identity,
+    get_jwt
 )
 from passlib.hash import bcrypt
 
@@ -16,6 +17,9 @@ from schemas import UserSchema, RegisterSchema, LoginSchema
 class UserAPI(MethodView):
     @jwt_required()
     def get(self):
+        claims = get_jwt()
+        if claims["role"] != "admin":
+            return {"error": "No autorizado"}, 403
         users = User.query.all()
         return UserSchema(many=True).dump(users)
 
@@ -34,13 +38,26 @@ class UserAPI(MethodView):
 
 
 class UserDetailAPI(MethodView):
+
+    @jwt_required()
     def get(self, id):
+        current_user_id = int(get_jwt_identity())
+        claims = get_jwt()
+        if claims["role"] != "admin" and current_user_id != id:
+            return {"error": "No autorizado"}, 403
+
         user = User.query.get_or_404(id)
         return UserSchema().dump(user), 200
-    
+
+    @jwt_required()
     def put(self, id):
+        current_user_id = int(get_jwt_identity())
+        claims = get_jwt()
+        if claims["role"] != "admin" and current_user_id != id:
+            return {"error": "No autorizado"}, 403
+
         user = User.query.get_or_404(id)
-        try: 
+        try:
             data = UserSchema().load(request.json)
             user.name = data['name']
             user.email = data['email']
@@ -49,9 +66,15 @@ class UserDetailAPI(MethodView):
         except ValidationError as err:
             return {"Error": err.messages}
 
+    @jwt_required()
     def patch(self, id):
+        current_user_id = int(get_jwt_identity())
+        claims = get_jwt()
+        if claims["role"] != "admin" and current_user_id != id:
+            return {"error": "No autorizado"}, 403
+
         user = User.query.get_or_404(id)
-        try: 
+        try:
             data = UserSchema(partial=True).load(request.json)
             if 'name' in data:
                 user.name = data.get('name')
@@ -61,15 +84,28 @@ class UserDetailAPI(MethodView):
             return UserSchema().dump(user), 200
         except ValidationError as err:
             return {"Error": err.messages}
-        
+
+    @jwt_required()
     def delete(self, id):
+        current_user_id = int(get_jwt_identity())
+        claims = get_jwt()
+
+        if claims["role"] != "admin" and current_user_id != id:
+            return {"error": "No autorizado"}, 403
+
         user = User.query.get_or_404(id)
+
         try:
+            if hasattr(user, 'credential') and user.credential:
+                db.session.delete(user.credential)
+            
             db.session.delete(user)
             db.session.commit()
             return {"Message": "Deleted User"}, 204
-        except:
-            return {"Error": "No es posible borrarlo"}
+
+        except Exception as e:
+            return {"Error": f"No es posible borrarlo: {str(e)}"}, 500
+
 
 
 class UserRegisterAPI(MethodView):
@@ -78,10 +114,10 @@ class UserRegisterAPI(MethodView):
             data = RegisterSchema().load(request.json)
         except ValidationError as err:
             return {"Error": err}
-        
+
         if User.query.filter_by(email=data['email']).first():
             return {"Error": "Email en uso"}
-        
+
         new_user = User(name=data["name"], email=data['email'])
         db.session.add(new_user)
         db.session.flush()
@@ -102,15 +138,20 @@ class AuthLoginAPI(MethodView):
             data = LoginSchema().load(request.json)
         except ValidationError as err:
             return {"errors": err.messages}, 400
+
         user = User.query.filter_by(email=data["email"]).first()
         if not user or not user.credential:
             return {"errors": {"credentials": ["Inválidas"]}}, 401
+
         if not bcrypt.verify(data["password"], user.credential.password_hash):
             return {"errors": {"credentials": ["Inválidas"]}}, 401
-        identity = {
-            "id": user.id,
-            "email": user.email,
-            "role": user.credential.role,
-        }
-        token = create_access_token(identity=identity)
+
+        token = create_access_token(
+            identity=str(user.id),
+            additional_claims={
+                "email": user.email,
+                "role": user.credential.role
+            }
+        )
+
         return {"access_token": token}, 200
