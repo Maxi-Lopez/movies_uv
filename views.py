@@ -113,14 +113,15 @@ class UserRegisterAPI(MethodView):
         try:
             data = RegisterSchema().load(request.json)
         except ValidationError as err:
-            return {"Error": err}
+            return {"errors": err.messages}, 400  # ✅ ahora sí es serializable
 
         if User.query.filter_by(email=data['email']).first():
-            return {"Error": "Email en uso"}
+            return {"error": "Email en uso"}, 400
 
         new_user = User(name=data["name"], email=data['email'])
         db.session.add(new_user)
         db.session.flush()
+
         password_hash = bcrypt.hash(data['password'])
         credenciales = UserCredentials(
             user_id=new_user.id,
@@ -129,7 +130,8 @@ class UserRegisterAPI(MethodView):
         )
         db.session.add(credenciales)
         db.session.commit()
-        return UserSchema().dump(new_user)
+
+        return UserSchema().dump(new_user), 201
 
 
 class AuthLoginAPI(MethodView):

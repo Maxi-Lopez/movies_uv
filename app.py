@@ -7,8 +7,12 @@ from models import (
 )
 from schemas import ReviewSchema
 from views import UserAPI, UserDetailAPI, UserRegisterAPI, AuthLoginAPI
+from flask_cors import CORS
+
 
 app = Flask(__name__)
+CORS(app, origins=["http://localhost:5173"])
+
 app.config['SQLALCHEMY_DATABASE_URI'] = (
     'mysql+pymysql://BD2021:BD2021itec@143.198.156.171:3306/movies_pp1'
 )
